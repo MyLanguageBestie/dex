@@ -1,0 +1,68 @@
+# Builds and publishes the Dex image Ora.Cat runs — the one with the Sign in with Apple connector
+# (see FORK.md). Upstream's own release workflows are left alone; this is additive.
+#
+# The tag carries the upstream version it is built from, e.g. ghcr.io/mylanguagebestie/dex:v2.45.1,
+# so it is always obvious how far behind upstream this fork has drifted.
+name: Ora.Cat image
+
+on:
+  push:
+    branches: [apple-connector]
+    tags: ['oracat-v*']
+  # So the image can be rebuilt on a base-image CVE without an empty commit.
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Build and test before publishing: an image that does not start is worse than no new image.
+      # -vet=off because upstream v2.45.1 predates a Go 1.26 vet check and trips it in oauth2.go —
+      # see FORK.md; it is not ours to fix here.
+      - name: Build and test
+        run: |
+          go build ./...
+          go test -vet=off ./connector/apple/... ./server/...
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=match,pattern=oracat-(v.*),group=1
+            type=sha,format=long
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          # The NAS and the CI runner are not the same architecture; build both so a deploy never
+          # discovers this at pull time.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
