@@ -24,10 +24,13 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 			h.renderError(r, w, http.StatusBadRequest, "User session error.")
 			return
 		}
-	case http.MethodPost: // SAML POST binding
+	case http.MethodPost: // SAML POST binding, or OAuth2 response_mode=form_post
+		// SAML calls it RelayState; an OAuth2 form_post carries the ordinary `state`.
 		if authID = r.PostFormValue("RelayState"); authID == "" {
-			h.renderError(r, w, http.StatusBadRequest, "User session error.")
-			return
+			if authID = r.PostFormValue("state"); authID == "" {
+				h.renderError(r, w, http.StatusBadRequest, "User session error.")
+				return
+			}
 		}
 	default:
 		h.renderError(r, w, http.StatusBadRequest, "Method not supported")
@@ -66,6 +69,13 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 
 	var identity connector.Identity
 	switch conn := conn.Connector.(type) {
+	case connector.CallbackConnectorFormPOST:
+		if r.Method != http.MethodPost {
+			h.Logger.ErrorContext(r.Context(), "non-POST request mapped to a form_post OAuth2 connector")
+			h.renderError(r, w, http.StatusBadRequest, "Invalid request")
+			return
+		}
+		identity, err = conn.HandlePOST(tokens.ParseScopes(authReq.Scopes), authReq.ConnectorData, r)
 	case connector.CallbackConnector:
 		if r.Method != http.MethodGet {
 			h.Logger.ErrorContext(r.Context(), "SAML request mapped to OAuth2 connector")

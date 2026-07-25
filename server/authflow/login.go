@@ -158,6 +158,27 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		switch conn := conn.Connector.(type) {
+		case connector.CallbackConnectorFormPOST:
+			// Identical to the CallbackConnector case below — the two differ only in how the
+			// provider sends the answer back, which handleConnectorCallback deals with.
+			callbackURL, connData, err := conn.LoginURL(scopes, h.absURL("/callback"), authReq.ID)
+			if err != nil {
+				h.Logger.ErrorContext(r.Context(), "connector returned error when creating callback", "connector_id", connID, "err", err)
+				h.renderError(r, w, http.StatusInternalServerError, "Login error.")
+				return
+			}
+			if len(connData) > 0 {
+				updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
+					a.ConnectorData = connData
+					return a, nil
+				}
+				if err := h.Storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
+					h.Logger.ErrorContext(r.Context(), "Failed to set connector data on auth request", "connector_id", connID, "err", err)
+					h.renderError(r, w, http.StatusInternalServerError, "Database error.")
+					return
+				}
+			}
+			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.CallbackConnector:
 			// Use the auth request ID as the "state" token.
 			//
