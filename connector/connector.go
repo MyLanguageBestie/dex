@@ -82,6 +82,23 @@ type CallbackConnector interface {
 	HandleCallback(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
 }
 
+// CallbackConnectorFormPOST is implemented by connectors whose provider returns the
+// authorization response as an HTTP POST body (OAuth 2.0 response_mode=form_post)
+// rather than as query parameters on a redirect.
+//
+// Sign in with Apple requires this: Apple refuses any authorization request that asks
+// for the name or email scope unless response_mode=form_post is set, and then POSTs
+// the result to the callback. A CallbackConnector cannot express that, which is why
+// this exists as its own interface rather than a flag on that one.
+type CallbackConnectorFormPOST interface {
+	// The initial URL to redirect the user to, plus any connector data to carry
+	// through to the callback. Same contract as CallbackConnector.LoginURL.
+	LoginURL(s Scopes, callbackURL, state string) (string, []byte, error)
+
+	// HandlePOST handles the POSTed callback and returns an identity.
+	HandlePOST(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
+}
+
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
 //
 //	RelayState is handled by the server.
