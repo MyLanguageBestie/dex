@@ -50,13 +50,13 @@ type claims struct {
 
 func NewSecret(cfg *Config) (*Secret, error) {
 	if len(cfg.TeamID) == 0 {
-		return nil, fmt.Errorf("missing team_id configuration")
+		return nil, fmt.Errorf("missing %q: the 10-character Apple Team ID that owns the signing key", "teamID")
 	}
 	if len(cfg.KeyID) == 0 {
-		return nil, fmt.Errorf("missing key_id configuration")
+		return nil, fmt.Errorf("missing %q: the id Apple shows beside the downloaded .p8 key", "keyID")
 	}
 	if len(cfg.PrivateKeyFile) == 0 {
-		return nil, fmt.Errorf("missing private_key_file configuration")
+		return nil, fmt.Errorf("missing %q: path to the PKCS#8 .p8 key downloaded from Apple", "privateKeyFile")
 	}
 	if cfg.SecretDuration == 0 {
 		// Max duration is currently 6 months

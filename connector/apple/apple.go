@@ -68,11 +68,11 @@ type Config struct {
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
 
-	KeyID string `json:"key_id"`
+	KeyID string `json:"keyID"`
 
-	TeamID string `json:"team_id"`
+	TeamID string `json:"teamID"`
 
-	PrivateKeyFile string `json:"private_key_file"`
+	PrivateKeyFile string `json:"privateKeyFile"`
 
 	SecretDuration int64 `json:"secret_duration"`
 
@@ -109,7 +109,16 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
+// appleIssuer is where Sign in with Apple always lives. It is a constant rather than required
+// configuration because this connector cannot point anywhere else, and asking for it only creates a
+// field to get wrong.
+const appleIssuer = "https://appleid.apple.com"
+
 func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector, err error) {
+	if c.Issuer == "" {
+		c.Issuer = appleIssuer
+	}
+
 	secretConfig := secret.Config{
 		TeamID:          c.TeamID,
 		KeyID:           c.KeyID,
