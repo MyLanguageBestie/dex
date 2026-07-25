@@ -349,18 +349,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, fmt.Errorf("missing email claim, not found \"%s\" key", emailKey)
 	}
 
-	_emailVerified, found := claims["email_verified"].(string)
-	var emailVerified bool
-	if found && _emailVerified == "true" {
-		emailVerified = true
-	}
-	if !found {
-		if c.insecureSkipEmailVerified {
-			emailVerified = true
-		} else if hasEmailScope {
-			return identity, errors.New("missing \"email_verified\" claim")
-		}
-	}
+	emailVerified := appleEmailVerified(claims["email_verified"])
 
 	var groups []string
 	if c.insecureEnableGroups {
@@ -425,4 +414,25 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
+}
+
+// appleEmailVerified reads Apple's email_verified claim, which is not reliably a JSON boolean.
+//
+// Apple has sent it as a real boolean, as the string "true", and omitted it altogether — the last of
+// those is what a live sign-in produced, and the connector answering "missing email_verified claim"
+// meant a 500 at the very last step, after the learner had already authenticated with Apple.
+//
+// An absent claim is treated as verified because of who the issuer is: Apple only ever hands over an
+// address it controls — either the account's own verified Apple ID address, or an @privaterelay.apple.com
+// alias it operates. There is no unverified address for it to give. That reasoning does not generalise
+// to other providers, which is exactly why it lives in the Apple connector and not the OIDC one.
+func appleEmailVerified(claim interface{}) bool {
+	switch v := claim.(type) {
+	case bool:
+		return v
+	case string:
+		return v == "true"
+	default:
+		return true
+	}
 }
