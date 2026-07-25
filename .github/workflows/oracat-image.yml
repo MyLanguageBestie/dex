@@ -7,7 +7,7 @@ name: Ora.Cat image
 
 on:
   push:
-    branches: [apple-connector]
+    branches: [apple-connector-master]
     tags: ['oracat-v*']
   # So the image can be rebuilt on a base-image CVE without an empty commit.
   workflow_dispatch:
@@ -30,12 +30,10 @@ jobs:
           go-version-file: go.mod
 
       # Build and test before publishing: an image that does not start is worse than no new image.
-      # -vet=off because upstream v2.45.1 predates a Go 1.26 vet check and trips it in oauth2.go —
-      # see FORK.md; it is not ours to fix here.
       - name: Build and test
         run: |
           go build ./...
-          go test -vet=off ./connector/apple/... ./server/...
+          go test ./connector/... ./server/...
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
